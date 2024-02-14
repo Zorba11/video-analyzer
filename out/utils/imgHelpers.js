@@ -118,7 +118,10 @@ async function describeImage(imagePath) {
     // const singleImgBase64 = await compressAndConvertToBase64(imagePath);
     const singleImgBase64 = await convertImgToBase64(imagePath);
     // base64 storyboard image
-    await createStoryboard([imagePath, imagePath, imagePath, imagePath, imagePath, imagePath], `${storyBoardName}`);
+    // await createStoryboard(
+    //   [imagePath, imagePath, imagePath, imagePath, imagePath, imagePath],
+    //   `${storyBoardName}`
+    // );
     const storyboardBase64 = await compressAndConvertToBase64(storyBoardName);
     // const storyboardBase64 = await convertImageToBase64(storyBoardName);
     // convert storyboard to base64

@@ -1,6 +1,3 @@
-import fs from 'fs';
-import sharp from 'sharp';
-import { createCanvas, ImageData } from 'canvas';
 import { describeBaseScene, describeWithGPT4 } from './llmCalls';
 import express from 'express';
 import bodyParser from 'body-parser';
@@ -101,8 +98,6 @@ app.post('/uploadFrames', async (req, res) => {
         storyBoardBuffer,
         SystemPrompts.ClockViewBlockedOrDetectLights
       );
-
-      console.log('description: ', description);
 
       storyBoardBuffer = [];
       clearDirectory('images');

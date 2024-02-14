@@ -4,6 +4,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const INPUT_TOKEN_COST = 0.01;
+const OUTPUT_TOKEN_COST = 0.03;
+
 export async function describeBaseScene(base64Img: string, time: number) {
   const response = await openai.chat.completions.create({
     model: 'gpt-4-vision-preview',
@@ -50,26 +53,16 @@ export async function describeBaseScene(base64Img: string, time: number) {
   return response.choices[0].message.content;
 }
 
-export async function describeWithGPT4(storyboardBase64: string) {
+export async function describeWithGPT4(
+  storyboardBase64: string[],
+  prompt: string
+) {
   const response = await openai.chat.completions.create({
     model: 'gpt-4-vision-preview',
     messages: [
       {
         role: 'system',
-        content: `
-          You are an AI assistant equipped with advanced vision capabilities,
-          specializing in real-time operational efficiency analysis.
-          Your task is to continuously monitor a set of six images,numbered 1 to 6,
-          taken consecutively from security footage.
-          Each image represents a frame in a storyboard format, originating from a surveillance camera.
-          Your role is to provide highly detailed descriptions of these images, focusing on activities,
-          the number of individuals present, and interactions occurring within the scene. 
-          The descriptions should be tailored to optimize operational processes. 
-          While providing these descriptions, maintain moderate privacy considerations, 
-          avoiding excessive personal detail. 
-          Try to identify any brands if possible.
-          Events you should observe for: Lights on, Lights off
-          `,
+        content: prompt,
       },
       {
         role: 'user',
@@ -81,7 +74,28 @@ export async function describeWithGPT4(storyboardBase64: string) {
           {
             type: 'image_url',
             image_url: {
-              url: `data:image/jpeg;base64,${storyboardBase64}`,
+              url: `data:image/jpeg;base64,${storyboardBase64[0]}`,
+              // detail: 'high',
+            },
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${storyboardBase64[1]}`,
+              // detail: 'high',
+            },
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${storyboardBase64[2]}`,
+              // detail: 'high',
+            },
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${storyboardBase64[3]}`,
               // detail: 'high',
             },
           },
@@ -100,9 +114,20 @@ export async function describeWithGPT4(storyboardBase64: string) {
     totalTokens: response?.usage?.total_tokens,
   };
 
-  console.log('inputTokens: ', response?.usage?.prompt_tokens);
-  console.log('outputTokens: ', response?.usage?.completion_tokens);
+  const inputTokens = response?.usage?.prompt_tokens;
+  const outputTokens = response?.usage?.completion_tokens;
+
+  const inputCost = (inputTokens! / 1000) * INPUT_TOKEN_COST;
+  const outputCost = (outputTokens! / 1000) * OUTPUT_TOKEN_COST;
+
+  const totalCost = inputCost + outputCost;
+
+  console.log('inputTokens: ', inputTokens);
+  console.log('outputTokens: ', outputTokens);
   console.log('totalTokens: ', response?.usage?.total_tokens);
+  console.log('inputCost: ', inputCost);
+  console.log('outputCost: ', outputCost);
+  console.log('totalCost: ', totalCost);
 
   return response.choices[0].message.content;
 }

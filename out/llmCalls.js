@@ -8,6 +8,8 @@ const openai_1 = __importDefault(require("openai"));
 const openai = new openai_1.default({
     apiKey: process.env.OPENAI_API_KEY,
 });
+const INPUT_TOKEN_COST = 0.01;
+const OUTPUT_TOKEN_COST = 0.03;
 async function describeBaseScene(base64Img, time) {
     var _a, _b, _c;
     const response = await openai.chat.completions.create({
@@ -50,27 +52,14 @@ async function describeBaseScene(base64Img, time) {
     return response.choices[0].message.content;
 }
 exports.describeBaseScene = describeBaseScene;
-async function describeWithGPT4(storyboardBase64) {
+async function describeWithGPT4(storyboardBase64, prompt) {
     var _a, _b, _c, _d, _e, _f;
     const response = await openai.chat.completions.create({
         model: 'gpt-4-vision-preview',
         messages: [
             {
                 role: 'system',
-                content: `
-          You are an AI assistant equipped with advanced vision capabilities,
-          specializing in real-time operational efficiency analysis.
-          Your task is to continuously monitor a set of six images,numbered 1 to 6,
-          taken consecutively from security footage.
-          Each image represents a frame in a storyboard format, originating from a surveillance camera.
-          Your role is to provide highly detailed descriptions of these images, focusing on activities,
-          the number of individuals present, and interactions occurring within the scene. 
-          The descriptions should be tailored to optimize operational processes. 
-          While providing these descriptions, maintain moderate privacy considerations, 
-          avoiding excessive personal detail. 
-          Try to identify any brands if possible.
-          Events you should observe for: Lights on, Lights off
-          `,
+                content: prompt,
             },
             {
                 role: 'user',
@@ -82,7 +71,28 @@ async function describeWithGPT4(storyboardBase64) {
                     {
                         type: 'image_url',
                         image_url: {
-                            url: `data:image/jpeg;base64,${storyboardBase64}`,
+                            url: `data:image/jpeg;base64,${storyboardBase64[0]}`,
+                            // detail: 'high',
+                        },
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/jpeg;base64,${storyboardBase64[1]}`,
+                            // detail: 'high',
+                        },
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/jpeg;base64,${storyboardBase64[2]}`,
+                            // detail: 'high',
+                        },
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/jpeg;base64,${storyboardBase64[3]}`,
                             // detail: 'high',
                         },
                     },
@@ -98,9 +108,17 @@ async function describeWithGPT4(storyboardBase64) {
         outputTokens: (_b = response === null || response === void 0 ? void 0 : response.usage) === null || _b === void 0 ? void 0 : _b.completion_tokens,
         totalTokens: (_c = response === null || response === void 0 ? void 0 : response.usage) === null || _c === void 0 ? void 0 : _c.total_tokens,
     };
-    console.log('inputTokens: ', (_d = response === null || response === void 0 ? void 0 : response.usage) === null || _d === void 0 ? void 0 : _d.prompt_tokens);
-    console.log('outputTokens: ', (_e = response === null || response === void 0 ? void 0 : response.usage) === null || _e === void 0 ? void 0 : _e.completion_tokens);
+    const inputTokens = (_d = response === null || response === void 0 ? void 0 : response.usage) === null || _d === void 0 ? void 0 : _d.prompt_tokens;
+    const outputTokens = (_e = response === null || response === void 0 ? void 0 : response.usage) === null || _e === void 0 ? void 0 : _e.completion_tokens;
+    const inputCost = (inputTokens / 1000) * INPUT_TOKEN_COST;
+    const outputCost = (outputTokens / 1000) * OUTPUT_TOKEN_COST;
+    const totalCost = inputCost + outputCost;
+    console.log('inputTokens: ', inputTokens);
+    console.log('outputTokens: ', outputTokens);
     console.log('totalTokens: ', (_f = response === null || response === void 0 ? void 0 : response.usage) === null || _f === void 0 ? void 0 : _f.total_tokens);
+    console.log('inputCost: ', inputCost);
+    console.log('outputCost: ', outputCost);
+    console.log('totalCost: ', totalCost);
     return response.choices[0].message.content;
 }
 exports.describeWithGPT4 = describeWithGPT4;

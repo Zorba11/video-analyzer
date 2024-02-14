@@ -73,7 +73,6 @@ app.post('/uploadFrames', async (req, res) => {
         storyBoardBuffer.push(storyboardBase64);
         if (storyBoardBuffer.length === 4) {
             const description = await (0, llmCalls_1.describeWithGPT4)(storyBoardBuffer, SystemPrompts_1.SystemPrompts.ClockViewBlockedOrDetectLights);
-            console.log('description: ', description);
             storyBoardBuffer = [];
             (0, fileSysHelpers_1.clearDirectory)('images');
             res.status(200).send(`Heres what I saw: ${description}`);
