@@ -137,14 +137,14 @@ async function describeImage(imagePath) {
     }
 }
 exports.describeImage = describeImage;
-async function createStoryboard(images, output) {
+async function createStoryboard(frames, output) {
     try {
         const gap = 5;
-        const timestampHeight = 50;
+        const timestampHeight = 35;
         // Load and resize all images, and add a timestamp to each image
-        const processedImages = await Promise.all(images.map(async (image, index) => {
-            const img = await (0, sharp_1.default)(image).resize(200, 200);
-            const timestamp = await createTextImage(`Frame ${index + 1}`, 200, timestampHeight);
+        const processedImages = await Promise.all(frames.map(async (frame, index) => {
+            const img = await (0, sharp_1.default)(frame.imgName).resize(200, 200);
+            const timestamp = await createTextImage(`${new Date(frame.time).toLocaleTimeString()}`, 200, timestampHeight);
             return img
                 .composite([
                 { input: timestamp, top: 200 - timestampHeight, left: 0 },

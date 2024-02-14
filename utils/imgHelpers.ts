@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { IFrameForLLM } from '../Interfaces';
+import { IFrameForLLM, IStoryBSingleFrame } from '../Interfaces';
 import sharp from 'sharp';
 import { createCanvas } from 'canvas';
 
@@ -173,17 +173,20 @@ export async function describeImage(imagePath: string) {
   }
 }
 
-export async function createStoryboard(images: string[], output: string) {
+export async function createStoryboard(
+  frames: IStoryBSingleFrame[],
+  output: string
+) {
   try {
     const gap = 5;
-    const timestampHeight = 50;
+    const timestampHeight = 35;
 
     // Load and resize all images, and add a timestamp to each image
     const processedImages = await Promise.all(
-      images.map(async (image, index) => {
-        const img = await sharp(image).resize(200, 200);
+      frames.map(async (frame, index) => {
+        const img = await sharp(frame.imgName).resize(200, 200);
         const timestamp = await createTextImage(
-          `Frame ${index + 1}`,
+          `${new Date(frame.time).toLocaleTimeString()}`,
           200,
           timestampHeight
         );

@@ -9,7 +9,10 @@ const body_parser_1 = __importDefault(require("body-parser"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const imgHelpers_1 = require("./utils/imgHelpers");
+const SystemPrompts_1 = require("./SystemPrompts");
+const fileSysHelpers_1 = require("./utils/fileSysHelpers");
 dotenv_1.default.config();
+let storyBoardBuffer = [];
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
 app.use(body_parser_1.default.json({ limit: '50mb' }));
@@ -54,12 +57,12 @@ app.post('/uploadFrames', async (req, res) => {
         });
         // this will also save the image locally
         await (0, imgHelpers_1.createStoryboard)([
-            `images/output${fTime1}.jpg`,
-            `images/output${fTime2}.jpg`,
-            `images/output${fTime3}.jpg`,
-            `images/output${fTime4}.jpg`,
-            `images/output${fTime5}.jpg`,
-            `images/output${fTime6}.jpg`,
+            { time: fTime1, imgName: 'images/output' + fTime1 + '.jpg' },
+            { time: fTime2, imgName: 'images/output' + fTime2 + '.jpg' },
+            { time: fTime3, imgName: 'images/output' + fTime3 + '.jpg' },
+            { time: fTime4, imgName: 'images/output' + fTime4 + '.jpg' },
+            { time: fTime5, imgName: 'images/output' + fTime5 + '.jpg' },
+            { time: fTime6, imgName: 'images/output' + fTime6 + '.jpg' },
         ], storyBoardName);
         // const storyboardBase64 = await compressAndConvertToBase64(storyBoardName);
         // saveBase64AsJPG(
@@ -67,10 +70,17 @@ app.post('/uploadFrames', async (req, res) => {
         //   'output-story-sequenced-api-COMPRESSED.jpg'
         // );
         const storyboardBase64 = await (0, imgHelpers_1.convertImgToBase64)(storyBoardName);
-        // const description = await describeWithGPT4(storyboardBase64);
-        // console.log('description: ', description);
-        // res.status(200).send(`Heres what I saw: ${description}`);
-        res.status(200).send(`Heres what I saw:`);
+        storyBoardBuffer.push(storyboardBase64);
+        if (storyBoardBuffer.length === 4) {
+            const description = await (0, llmCalls_1.describeWithGPT4)(storyBoardBuffer, SystemPrompts_1.SystemPrompts.ClockViewBlockedOrDetectLights);
+            console.log('description: ', description);
+            storyBoardBuffer = [];
+            (0, fileSysHelpers_1.clearDirectory)('images');
+            res.status(200).send(`Heres what I saw: ${description}`);
+        }
+        else {
+            res.status(200).send(`Frames were added to the buffer`);
+        }
     }
     catch (error) {
         console.error(error);

@@ -12,7 +12,11 @@ import {
   createStoryboard,
   saveYUVBase64AsJPG,
 } from './utils/imgHelpers';
+import { SystemPrompts } from './SystemPrompts';
+import { clearDirectory } from './utils/fileSysHelpers';
 dotenv.config();
+
+let storyBoardBuffer: string[] = [];
 
 const app = express();
 
@@ -72,12 +76,12 @@ app.post('/uploadFrames', async (req, res) => {
     // this will also save the image locally
     await createStoryboard(
       [
-        `images/output${fTime1}.jpg`,
-        `images/output${fTime2}.jpg`,
-        `images/output${fTime3}.jpg`,
-        `images/output${fTime4}.jpg`,
-        `images/output${fTime5}.jpg`,
-        `images/output${fTime6}.jpg`,
+        { time: fTime1, imgName: 'images/output' + fTime1 + '.jpg' },
+        { time: fTime2, imgName: 'images/output' + fTime2 + '.jpg' },
+        { time: fTime3, imgName: 'images/output' + fTime3 + '.jpg' },
+        { time: fTime4, imgName: 'images/output' + fTime4 + '.jpg' },
+        { time: fTime5, imgName: 'images/output' + fTime5 + '.jpg' },
+        { time: fTime6, imgName: 'images/output' + fTime6 + '.jpg' },
       ],
       storyBoardName
     );
@@ -90,13 +94,23 @@ app.post('/uploadFrames', async (req, res) => {
 
     const storyboardBase64 = await convertImgToBase64(storyBoardName);
 
-    // const description = await describeWithGPT4(storyboardBase64);
+    storyBoardBuffer.push(storyboardBase64);
 
-    // console.log('description: ', description);
+    if (storyBoardBuffer.length === 4) {
+      const description = await describeWithGPT4(
+        storyBoardBuffer,
+        SystemPrompts.ClockViewBlockedOrDetectLights
+      );
 
-    // res.status(200).send(`Heres what I saw: ${description}`);
+      console.log('description: ', description);
 
-    res.status(200).send(`Heres what I saw:`);
+      storyBoardBuffer = [];
+      clearDirectory('images');
+
+      res.status(200).send(`Heres what I saw: ${description}`);
+    } else {
+      res.status(200).send(`Frames were added to the buffer`);
+    }
   } catch (error) {
     console.error(error);
     res.status(500).send('An error occurred while processing the image');

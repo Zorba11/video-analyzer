@@ -4,3 +4,8 @@ export interface IFrameForLLM {
   time?: number;
   data: string;
 }
+
+export interface IStoryBSingleFrame {
+  time: number;
+  imgName: string;
+}
