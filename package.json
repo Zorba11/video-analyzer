@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "ts-node ./index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "babel src --out-dir dist --extensions '.ts,.tsx'"
   },
   "author": "zorba11",
   "license": "ISC",
@@ -16,8 +18,12 @@
     "express": "^4.18.2",
     "jpeg-js": "^0.4.4",
     "openai": "^4.26.0",
-    "sharp": "^0.33.2",
-    "yuv-buffer": "^1.0.0"
+    "sharp": "^0.33.2"
   },
-  "type": "module"
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
 }

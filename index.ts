@@ -1,18 +1,13 @@
-import OpenAI from 'openai';
 import fs from 'fs';
 import sharp from 'sharp';
 import { createCanvas, ImageData } from 'canvas';
-import yuvBuffer from 'yuv-buffer';
-import jpeg from 'jpeg-js';
+import { describeBaseScene, describeWithGPT4 } from './llmCalls';
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { IFrameForLLM } from './ILLMFrame';
 dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 const app = express();
 
@@ -25,29 +20,59 @@ app.get('/ping', (req, res) => {
   return res.send('pong');
 });
 
+app.post('/describeBaseScene', async (req, res) => {
+  try {
+    const frames = req.body.frames;
+    const time = frames[0].time;
+    const frWidth = frames[0].width;
+    const frHeight = frames[0].height;
+
+    await saveYUVBase64AsJPG(frames[0], 'baseScene.jpg');
+
+    const sceneInBase64 = await convertImgToBase64('baseScene.jpg');
+
+    const description = await describeBaseScene(sceneInBase64, time);
+
+    console.log('description: ', description);
+
+    res.status(200).send(`Heres what I saw: ${description}`);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('An error occurred while processing the image');
+  }
+});
+
 app.post('/uploadFrames', async (req, res) => {
   try {
     const base64Images = req.body.base64Images;
-    const storyBoardName = 'output-story-sequenced-api.jpg';
+
+    const fTime1 = base64Images[0].time;
+    const fTime2 = base64Images[1].time;
+    const fTime3 = base64Images[2].time;
+    const fTime4 = base64Images[3].time;
+    const fTime5 = base64Images[4].time;
+    const fTime6 = base64Images[5].time;
+
+    const storyBoardName = `output-story-sequenced-${fTime1}.jpg`;
 
     if (!base64Images || base64Images.length !== 6) {
       return res.status(400).send('Exactly 6 images are required');
     }
 
-    base64Images.forEach((frame, index) => {
+    base64Images.forEach((frame: IFrameForLLM, index: number) => {
       // saveBase64AsJPG(base64Image, `output${index}.jpg`);
-      saveYUVBase64AsJPG(frame, `output${index}.jpg`);
+      saveYUVBase64AsJPG(frame, `images/output${frame.time}.jpg`);
     });
 
     // this will also save the image locally
     await createStoryboard(
       [
-        `output0.jpg`,
-        `output1.jpg`,
-        `output2.jpg`,
-        `output3.jpg`,
-        `output4.jpg`,
-        `output5.jpg`,
+        `images/output${fTime1}.jpg`,
+        `images/output${fTime2}.jpg`,
+        `images/output${fTime3}.jpg`,
+        `images/output${fTime4}.jpg`,
+        `images/output${fTime5}.jpg`,
+        `images/output${fTime6}.jpg`,
       ],
       storyBoardName
     );
@@ -61,6 +86,8 @@ app.post('/uploadFrames', async (req, res) => {
     const storyboardBase64 = await convertImgToBase64(storyBoardName);
 
     const description = await describeWithGPT4(storyboardBase64);
+
+    console.log('description: ', description);
 
     res.status(200).send(`Heres what I saw: ${description}`);
   } catch (error) {
@@ -76,24 +103,12 @@ app.post('/uploadFrames', async (req, res) => {
 // const canvasHeight = 600;
 // canvas.setDimensions({ width: canvasWidth, height: canvasHeight });
 
-function addImageToCanvas(canvas, imageUrl, left, top, width, height) {
-  fabric.Image.fromURL(imageUrl, function (img) {
-    img.set({
-      left: left,
-      top: top,
-      scaleX: width / img.width,
-      scaleY: height / img.height,
-    });
-    canvas.add(img);
-  });
-}
-
-function imageToBase64(path) {
+function imageToBase64(path: string) {
   const image = fs.readFileSync(path);
   return image.toString('base64');
 }
 
-async function compressAndConvertToBase64(imagePath) {
+async function compressAndConvertToBase64(imagePath: string) {
   // Compress the image
   const outputBuffer = await sharp(imagePath)
     .resize(250, 250, {
@@ -109,7 +124,7 @@ async function compressAndConvertToBase64(imagePath) {
   return base64Image;
 }
 
-function convertImgToBase64(imagePath) {
+function convertImgToBase64(imagePath: string) {
   try {
     // Read the image file into a Buffer
     const imageBuffer = fs.readFileSync(imagePath);
@@ -124,7 +139,7 @@ function convertImgToBase64(imagePath) {
   }
 }
 
-async function saveYUVBase64AsJPG(frame, outputPath) {
+async function saveYUVBase64AsJPG(frame: IFrameForLLM, outputPath: string) {
   // const yPlaneSize = frame?.width * frame?.height;
 
   const width = frame?.width;
@@ -190,7 +205,7 @@ async function saveYUVBase64AsJPG(frame, outputPath) {
   // canvas = undefined;
 }
 
-function yuvToRgba(y, u, v) {
+function yuvToRgba(y: number, u: number, v: number) {
   const r = y + 1.13983 * (v - 128);
   const g = y - 0.39465 * (u - 128) - 0.5806 * (v - 128);
   const b = y + 2.03211 * (u - 128);
@@ -198,7 +213,7 @@ function yuvToRgba(y, u, v) {
   return [r, g, b, 255]; // Alpha channel is always 255
 }
 
-function saveBase64AsJPG(base64Image, outputPath) {
+function saveBase64AsJPG(base64Image: string, outputPath: string) {
   // Convert the base64 string back to binary data
   const binaryData = Buffer.from(base64Image, 'base64');
 
@@ -208,7 +223,7 @@ function saveBase64AsJPG(base64Image, outputPath) {
   // console.log(`Image saved to ${outputPath}`);
 }
 
-async function createTextImage(text, width, height) {
+async function createTextImage(text: string, width: number, height: number) {
   const canvas = createCanvas(width, height);
   const context = canvas.getContext('2d');
 
@@ -221,7 +236,7 @@ async function createTextImage(text, width, height) {
   return canvas.toBuffer();
 }
 
-async function createStoryboard(images, output) {
+async function createStoryboard(images: string[], output: string) {
   try {
     const gap = 5;
     const timestampHeight = 50;
@@ -282,7 +297,7 @@ async function createStoryboard(images, output) {
   }
 }
 
-async function describeImage(imagePath) {
+async function describeImage(imagePath: string) {
   // const base64Image = await compressAndConvertToBase64(imagePath);
   // saveBase64Image(base64Image, 'output.jpg');
 
@@ -316,69 +331,8 @@ async function describeImage(imagePath) {
   }
 }
 
-async function describeWithGPT4(storyboardBase64) {
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4-vision-preview',
-    messages: [
-      {
-        role: 'system',
-        content: `
-          You are an AI assistant equipped with advanced vision capabilities,
-          specializing in real-time operational efficiency analysis.
-          Your task is to continuously monitor a set of six images,numbered 1 to 6,
-          taken consecutively from security footage.
-          Each image represents a frame in a storyboard format, originating from a surveillance camera.
-          Your role is to provide highly detailed descriptions of these images, focusing on activities,
-          the number of individuals present, and interactions occurring within the scene. 
-          The descriptions should be tailored to optimize operational processes. 
-          While providing these descriptions, maintain moderate privacy considerations, 
-          avoiding excessive personal detail. 
-          Try to identify any brands if possible.
-          Find useful informations like if the image is of a parking lot, tell me what color the cars are, how many cars are there, and what is the average price of the cars.
-          Your analysis will be utilized for ongoing operational enhancements.
-          `,
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Decribe whats seen in the image? if its a parking lot, then tell me how many cars can be seen adn tell me the average price of the cars seen',
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: `data:image/jpeg;base64,${storyboardBase64}`,
-              // detail: 'high',
-            },
-          },
-        ],
-      },
-    ],
-    max_tokens: 1500,
-  });
-
-  console.log("here's what I saw: ", response.choices[0].message.content);
-
-  const resp = {
-    description: response.choices[0].message.content,
-    inputTokens: response.usage.prompt_tokens,
-    outputTokens: response.usage.completion_tokens,
-    totalTokens: response.usage.total_tokens,
-  };
-
-  console.log('inputTokens: ', response.usage.prompt_tokens);
-  console.log('outputTokens: ', response.usage.completion_tokens);
-  console.log('totalTokens: ', response.usage.total_tokens);
-
-  return response.choices[0].message.content;
-}
-
 // Example usage with a local image
 // describeImage('parking-lot-march.png');
 
 const PORT = process.env.PORT || 3005;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
-
-
