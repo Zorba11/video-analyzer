@@ -9,6 +9,7 @@ const body_parser_1 = __importDefault(require("body-parser"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const imgHelpers_1 = require("./utils/imgHelpers");
+const actionsRoot_1 = require("./actions/actionsRoot");
 const SystemPrompts_1 = require("./SystemPrompts");
 const fileSysHelpers_1 = require("./utils/fileSysHelpers");
 dotenv_1.default.config();
@@ -24,14 +25,14 @@ app.get('/ping', (req, res) => {
 app.post('/describeBaseScene', async (req, res) => {
     try {
         const frames = req.body.frames;
-        const time = frames[0].time;
-        const frWidth = frames[0].width;
-        const frHeight = frames[0].height;
+        // const time = frames[0].time;
+        // const frWidth = frames[0].width;
+        // const frHeight = frames[0].height;
         await (0, imgHelpers_1.saveYUVBase64AsJPG)(frames[0], 'baseScene.jpg');
         const sceneInBase64 = await (0, imgHelpers_1.convertImgToBase64)('baseScene.jpg');
-        const description = await (0, llmCalls_1.describeBaseScene)(sceneInBase64, time);
-        console.log('description: ', description);
-        res.status(200).send(`Heres what I saw: ${description}`);
+        // const description = await describeBaseScene(sceneInBase64, time);
+        // console.log('description: ', description);
+        // res.status(200).send(`Heres what I saw: ${description}`);
     }
     catch (error) {
         console.error(error);
@@ -71,11 +72,17 @@ app.post('/uploadFrames', async (req, res) => {
         // );
         const storyboardBase64 = await (0, imgHelpers_1.convertImgToBase64)(storyBoardName);
         storyBoardBuffer.push(storyboardBase64);
-        if (storyBoardBuffer.length === 4) {
+        if (storyBoardBuffer.length >= 4) {
             const description = await (0, llmCalls_1.describeWithGPT4)(storyBoardBuffer, SystemPrompts_1.SystemPrompts.ClockViewBlockedOrDetectLights);
-            storyBoardBuffer = [];
-            (0, fileSysHelpers_1.clearDirectory)('images');
-            res.status(200).send(`Heres what I saw: ${description}`);
+            if (description) {
+                (0, actionsRoot_1.executeAction)(description);
+                storyBoardBuffer = [];
+                (0, fileSysHelpers_1.clearDirectory)('images');
+                res.status(200).send(`Heres what I saw: ${description}`);
+            }
+            else {
+                res.status(200).send(`No description was returned`);
+            }
         }
         else {
             res.status(200).send(`Frames were added to the buffer`);

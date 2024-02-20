@@ -9,6 +9,7 @@ import {
   createStoryboard,
   saveYUVBase64AsJPG,
 } from './utils/imgHelpers';
+import { executeAction } from './actions/actionsRoot';
 import { SystemPrompts } from './SystemPrompts';
 import { clearDirectory } from './utils/fileSysHelpers';
 dotenv.config();
@@ -29,19 +30,19 @@ app.get('/ping', (req, res) => {
 app.post('/describeBaseScene', async (req, res) => {
   try {
     const frames = req.body.frames;
-    const time = frames[0].time;
-    const frWidth = frames[0].width;
-    const frHeight = frames[0].height;
+    // const time = frames[0].time;
+    // const frWidth = frames[0].width;
+    // const frHeight = frames[0].height;
 
     await saveYUVBase64AsJPG(frames[0], 'baseScene.jpg');
 
     const sceneInBase64 = await convertImgToBase64('baseScene.jpg');
 
-    const description = await describeBaseScene(sceneInBase64, time);
+    // const description = await describeBaseScene(sceneInBase64, time);
 
-    console.log('description: ', description);
+    // console.log('description: ', description);
 
-    res.status(200).send(`Heres what I saw: ${description}`);
+    // res.status(200).send(`Heres what I saw: ${description}`);
   } catch (error) {
     console.error(error);
     res.status(500).send('An error occurred while processing the image');
@@ -93,16 +94,22 @@ app.post('/uploadFrames', async (req, res) => {
 
     storyBoardBuffer.push(storyboardBase64);
 
-    if (storyBoardBuffer.length === 4) {
+    if (storyBoardBuffer.length >= 4) {
       const description = await describeWithGPT4(
         storyBoardBuffer,
         SystemPrompts.ClockViewBlockedOrDetectLights
       );
 
-      storyBoardBuffer = [];
-      clearDirectory('images');
+      if (description) {
+        executeAction(description);
 
-      res.status(200).send(`Heres what I saw: ${description}`);
+        storyBoardBuffer = [];
+        clearDirectory('images');
+
+        res.status(200).send(`Heres what I saw: ${description}`);
+      } else {
+        res.status(200).send(`No description was returned`);
+      }
     } else {
       res.status(200).send(`Frames were added to the buffer`);
     }

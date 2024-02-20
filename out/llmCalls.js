@@ -93,7 +93,7 @@ async function describeWithGPT4(storyboardBase64, prompt) {
                         type: 'image_url',
                         image_url: {
                             url: `data:image/jpeg;base64,${storyboardBase64[3]}`,
-                            // detail: 'high',
+                            detail: 'high',
                         },
                     },
                 ],

@@ -96,7 +96,7 @@ export async function describeWithGPT4(
             type: 'image_url',
             image_url: {
               url: `data:image/jpeg;base64,${storyboardBase64[3]}`,
-              // detail: 'high',
+              detail: 'high',
             },
           },
         ],
