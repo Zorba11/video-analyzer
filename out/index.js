@@ -12,10 +12,24 @@ const imgHelpers_1 = require("./utils/imgHelpers");
 const actionsRoot_1 = require("./actions/actionsRoot");
 const SystemPrompts_1 = require("./SystemPrompts");
 const fileSysHelpers_1 = require("./utils/fileSysHelpers");
+const multer_1 = __importDefault(require("multer"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
 let storyBoardBuffer = [];
+const storage = multer_1.default.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    },
+});
+const upload = (0, multer_1.default)({ storage });
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+app.use((0, cors_1.default)({
+    origin: '*',
+}));
 app.use(body_parser_1.default.json({ limit: '50mb' }));
 app.use(body_parser_1.default.urlencoded({ limit: '50mb', extended: true }));
 // a ping pong endpoint
@@ -92,6 +106,46 @@ app.post('/uploadFrames', async (req, res) => {
         console.error(error);
         res.status(500).send('An error occurred while processing the image');
     }
+});
+// video upload
+app.post('/upload', upload.single('video'), (req, res) => {
+    if (req.file) {
+        console.log('req.file: ', req.file);
+        const fileName = req.file.filename;
+        console.log('filePath: ', fileName);
+        res.json({
+            filePath: fileName,
+        });
+    }
+    else {
+        res.status(400).send('No video uploaded.');
+    }
+});
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, 'uploads')));
+app.get('/video/:filename', (req, res) => {
+    const range = req.headers.range;
+    if (!range) {
+        res.status(400).send('Requires Range header');
+    }
+    const filename = req.params.filename;
+    const videoPath = `uploads/${filename}`;
+    const videoSize = fs_1.default.statSync(videoPath).size;
+    // parse Range
+    // Example: "bytes=32324-"
+    const CHUNK_SIZE = 10 ** 6; // 1MB
+    const start = Number(range === null || range === void 0 ? void 0 : range.replace(/\D/g, ''));
+    const end = Math.min(start + CHUNK_SIZE, videoSize - 1);
+    const contentLength = end - start + 1;
+    const headers = {
+        'Content-Range': `bytes ${start}-${end}/${videoSize}`,
+        'Accept-Range': 'bytes',
+        'Content-Length': contentLength,
+        'Content-Type': 'video/mp4',
+    };
+    // let the browser know that we are sending a partial content
+    res.writeHead(206, headers);
+    const videoStream = fs_1.default.createReadStream(videoPath, { start, end });
+    videoStream.pipe(res);
 });
 // Example usage with a local image
 // describeImage('parking-lot-march.png');

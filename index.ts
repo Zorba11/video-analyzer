@@ -12,13 +12,31 @@ import {
 import { executeAction } from './actions/actionsRoot';
 import { SystemPrompts } from './SystemPrompts';
 import { clearDirectory } from './utils/fileSysHelpers';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 dotenv.config();
 
 let storyBoardBuffer: string[] = [];
 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage });
+
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: '*',
+  })
+);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
@@ -118,6 +136,55 @@ app.post('/uploadFrames', async (req, res) => {
     res.status(500).send('An error occurred while processing the image');
   }
 });
+
+// video upload
+app.post('/upload', upload.single('video'), (req, res) => {
+  if (req.file) {
+    console.log('req.file: ', req.file);
+    const fileName = req.file.filename;
+    console.log('filePath: ', fileName);
+    res.json({
+      filePath: fileName,
+    });
+  } else {
+    res.status(400).send('No video uploaded.');
+  }
+});
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.get('/video/:filename', (req, res) => {
+  const range = req.headers.range;
+  if (!range) {
+    res.status(400).send('Requires Range header');
+  }
+
+  const filename = req.params.filename;
+  const videoPath = `uploads/${filename}`;
+  const videoSize = fs.statSync(videoPath).size;
+
+  // parse Range
+  // Example: "bytes=32324-"
+  const CHUNK_SIZE = 10 ** 6; // 1MB
+  const start = Number(range?.replace(/\D/g, ''));
+  const end = Math.min(start + CHUNK_SIZE, videoSize - 1);
+
+  const contentLength = end - start + 1;
+  const headers = {
+    'Content-Range': `bytes ${start}-${end}/${videoSize}`,
+    'Accept-Range': 'bytes',
+    'Content-Length': contentLength,
+    'Content-Type': 'video/mp4',
+  };
+
+  // let the browser know that we are sending a partial content
+  res.writeHead(206, headers);
+
+  const videoStream = fs.createReadStream(videoPath, { start, end });
+
+  videoStream.pipe(res);
+});
+
 
 // Example usage with a local image
 // describeImage('parking-lot-march.png');
