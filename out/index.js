@@ -22,7 +22,7 @@ const storage = multer_1.default.diskStorage({
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
+        cb(null, `${file.originalname}-${Date.now()}`);
     },
 });
 const upload = (0, multer_1.default)({ storage });
@@ -146,6 +146,16 @@ app.get('/video/:filename', (req, res) => {
     res.writeHead(206, headers);
     const videoStream = fs_1.default.createReadStream(videoPath, { start, end });
     videoStream.pipe(res);
+});
+app.get('/files', (req, res) => {
+    // const directoryPath = path.join(__dirname, 'uploads');
+    const directoryPath = 'uploads';
+    fs_1.default.readdir(directoryPath, (err, files) => {
+        if (err) {
+            return res.status(500).send('Unable to scan directory: ' + err);
+        }
+        res.send(files);
+    });
 });
 // Example usage with a local image
 // describeImage('parking-lot-march.png');

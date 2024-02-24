@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    cb(null, `${file.originalname}-${Date.now()}`);
   },
 });
 
@@ -184,6 +184,21 @@ app.get('/video/:filename', (req, res) => {
 
   videoStream.pipe(res);
 });
+
+app.get('/files', (req, res) => {
+  // const directoryPath = path.join(__dirname, 'uploads');
+  const directoryPath = 'uploads';
+
+  fs.readdir(directoryPath, (err, files) => {
+    if (err) {
+      return res.status(500).send('Unable to scan directory: ' + err);
+    }
+
+    res.send(files);
+  });
+});
+
+
 
 
 // Example usage with a local image
