@@ -1,8 +1,4 @@
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { openai } from './openai/openaiConfig';
 
 const INPUT_TOKEN_COST = 0.01;
 const OUTPUT_TOKEN_COST = 0.03;
