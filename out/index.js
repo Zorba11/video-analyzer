@@ -12,6 +12,7 @@ const imgHelpers_1 = require("./utils/imgHelpers");
 const actionsRoot_1 = require("./actions/actionsRoot");
 const SystemPrompts_1 = require("./SystemPrompts");
 const fileSysHelpers_1 = require("./utils/fileSysHelpers");
+const mediaExtractor_1 = require("./utils/mediaExtractor");
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
@@ -116,6 +117,12 @@ app.post('/upload', upload.single('video'), (req, res) => {
         res.json({
             filePath: fileName,
         });
+        const parentDirectory = path_1.default.dirname(__dirname);
+        const absoluteFilePath = path_1.default.join(parentDirectory, req.file.path);
+        console.log(absoluteFilePath);
+        const fileNameWithoutExtension = path_1.default.basename(fileName, path_1.default.extname(fileName));
+        const outputFolderPath = path_1.default.join(parentDirectory, `extractions/${fileNameWithoutExtension}/`);
+        (0, mediaExtractor_1.extractMediaAndTranscribe)(absoluteFilePath, outputFolderPath);
     }
     else {
         res.status(400).send('No video uploaded.');

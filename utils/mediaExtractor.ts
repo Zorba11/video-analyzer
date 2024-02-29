@@ -2,7 +2,7 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
-import { openai } from '../openai/openaiConfig';};
+import { openai } from '../openai/openaiConfig';
 
 interface TranscriptionCreateParams {
   // Other existing properties
@@ -36,15 +36,44 @@ export async function extractFrames(
   frameRate: number = 1,
   outputFolder: string
 ) {
+  // Create a new Promise
   return new Promise((resolve, reject) => {
+    // Check if video file exists
+    if (!fs.existsSync(videoPath)) {
+      reject('Video file does not exist');
+      return;
+    }
+
+    // Check if output folder exists, if not create it
+    if (!fs.existsSync(outputFolder)) {
+      fs.mkdirSync(outputFolder, { recursive: true });
+    }
+
+    // Check if output folder is writable
+    try {
+      fs.accessSync(outputFolder, fs.constants.W_OK);
+    } catch (err) {
+      reject('Output folder is not writable');
+      return;
+    }
+
+    // Start the ffmpeg command
     ffmpeg(videoPath)
+      // Set the output path and filename format
       .output(`${outputFolder}/frame-%04d.jpg`)
+      // Set the output options
       .outputOptions([`-vf fps=${frameRate}`])
-      .on('end', () => resolve('Frames extracted successfully!'))
+      // Define what happens when the command ends
+      .on('end', () => {
+        console.log('Frames extracted successfully!');
+        resolve('Frames extracted successfully!');
+      })
+      // Define what happens when an error occurs
       .on('error', (err) => {
-        console.error('error: ', err);
+        console.error('An error occurred while extracting frames: ', err);
         reject('Error occurred while extracting frames');
       })
+      // Run the command
       .run();
   });
 }
@@ -54,17 +83,21 @@ export async function extractAudio(
   outputFolderPath: string
 ) {
   return new Promise((resolve, reject) => {
-    const outputPath = path.join(outputFolderPath, 'extracted_audio.mp3');
+    const videoFileName = path.basename(videoPath, path.extname(videoPath));
+    const audioFileName = `${videoFileName}.mp3`;
+    const outputPath = path.join(outputFolderPath, audioFileName);
 
     ffmpeg(videoPath)
       .output(outputPath)
       .audioCodec('libmp3lame') // Use the MP3 codec
       .on('end', () => resolve(outputPath))
       .on('error', (err) => {
-        console.error('Error:', err);
+        console.error('Error extracting audio:', err);
         reject('Error occurred while extracting audio');
       })
       .run();
+
+    resolve(outputPath);
   });
 }
 
@@ -85,24 +118,17 @@ export async function extractAudio(
 // extractFramesFromVideo();
 // extractAudioFromVideo();
 
-export async function transcribeAudio(absoluteAudioPath: string) {
-  const transcription = await openai.audio.transcriptions.create({
-    file: fs.createReadStream(absoluteAudioPath),
-    model: 'whisper-1',
-    response_format: 'verbose_json',
-    timestamp_granularities: ['word'],
-  });
+export async function extractMediaAndTranscribe(
+  videoPath: string,
+  outputPath: string
+) {
+  try {
+    // Extract frames from video
+    await extractFrames(videoPath, 1, outputPath);
 
-  return transcription;
-}
-
-export async function extractMediaAndTranscribe(videoPath: string) {
-  // Extract frames from video
-  await extractFrames(absolutePathToFile, 1, outputFolderPath);
-
-  // Extract audio from video
-  const audioPath = await extractAudio(absolutePathToFile, outputFolderPath);
-
-  // Transcribe the audio
-  const transcribe = await transcribeAudio(absoluteAudioPath);
+    // Extract audio from video
+    await extractAudio(videoPath, outputPath);
+  } catch (error) {
+    console.error('Error extracting media and transcribing:', error);
+  }
 }

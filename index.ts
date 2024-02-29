@@ -12,6 +12,7 @@ import {
 import { executeAction } from './actions/actionsRoot';
 import { SystemPrompts } from './SystemPrompts';
 import { clearDirectory } from './utils/fileSysHelpers';
+import { extractMediaAndTranscribe } from './utils/mediaExtractor';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -146,6 +147,22 @@ app.post('/upload', upload.single('video'), (req, res) => {
     res.json({
       filePath: fileName,
     });
+
+    const parentDirectory = path.dirname(__dirname);
+    const absoluteFilePath = path.join(parentDirectory, req.file.path);
+    console.log(absoluteFilePath);
+
+    const fileNameWithoutExtension = path.basename(
+      fileName,
+      path.extname(fileName)
+    );
+
+    const outputFolderPath = path.join(
+      parentDirectory,
+      `extractions/${fileNameWithoutExtension}/`
+    );
+
+    extractMediaAndTranscribe(absoluteFilePath, outputFolderPath);
   } else {
     res.status(400).send('No video uploaded.');
   }

@@ -1,18 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.describeWithGPT4 = exports.describeBaseScene = void 0;
-const openai_1 = __importDefault(require("openai"));
-const openai = new openai_1.default({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+const openaiConfig_1 = require("./openai/openaiConfig");
 const INPUT_TOKEN_COST = 0.01;
 const OUTPUT_TOKEN_COST = 0.03;
 async function describeBaseScene(base64Img, time) {
     var _a, _b, _c;
-    const response = await openai.chat.completions.create({
+    const response = await openaiConfig_1.openai.chat.completions.create({
         model: 'gpt-4-vision-preview',
         messages: [
             {
@@ -54,7 +48,7 @@ async function describeBaseScene(base64Img, time) {
 exports.describeBaseScene = describeBaseScene;
 async function describeWithGPT4(storyboardBase64, prompt) {
     var _a, _b, _c, _d, _e, _f;
-    const response = await openai.chat.completions.create({
+    const response = await openaiConfig_1.openai.chat.completions.create({
         model: 'gpt-4-vision-preview',
         messages: [
             {

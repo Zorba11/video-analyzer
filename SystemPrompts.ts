@@ -7,17 +7,14 @@ export enum SystemPrompts {
       Objective: "To return JSON response to the user regarding the detection of events"
     },
     Output: {
-      Condition1: "If ≥25% of the clock view is obstructed",
+      Condition1: "If ≥40% of the clock view is obstructed",
       Action1: "Return [
         function_to_call: informBlockedView
       ]",
       Else: "Provide a summary of observed events."
-      Condition2: "detect changes in lighting within the scene",
+      Condition2: "if the lights are turned on",
       Action2: "Return [
         function_to_call: lightsOn
-      ] or [
-        function_to_call: lightsOff
-      ]",
       ]",
       Condition3: "If any meaningful English Text is detected",
       Action3: "Return [

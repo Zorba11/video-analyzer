@@ -10,6 +10,16 @@
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "sourceMaps": true,
       "runtimeVersion": "20.3.1",
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Embeddings Creator",
+      "preLaunchTask": "tsc: build - tsconfig.json",
+      "program": "${workspaceFolder}/out/utils/embeddingCreator.js",
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "sourceMaps": true,
+      "runtimeVersion": "20.3.1",
     }
   ]
 }
