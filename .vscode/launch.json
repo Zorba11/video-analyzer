@@ -16,7 +16,7 @@
       "request": "launch",
       "name": "Launch Embeddings Creator",
       "preLaunchTask": "tsc: build - tsconfig.json",
-      "program": "${workspaceFolder}/out/utils/embeddingCreator.js",
+      "program": "${workspaceFolder}/out/utils/insightsEngine.js",
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "sourceMaps": true,
       "runtimeVersion": "20.3.1",
