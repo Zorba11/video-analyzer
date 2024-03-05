@@ -24,7 +24,7 @@ export async function sendBlockedViewAlert() {
 export async function sendLightsONaLERT() {
   try {
     const message = await client.messages.create({
-      body: 'Hey, Someone SWitched the lights! You might wanna take a look.',
+      body: 'Hey, Someone turned ON the lights! You might wanna take a look.',
       from: process.env.TWILIO_PHONE_NUMBER,
       to: +13062412783,
     });

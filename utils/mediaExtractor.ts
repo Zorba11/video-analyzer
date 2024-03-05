@@ -120,14 +120,17 @@ export async function extractAudio(
 
 export async function extractMediaAndTranscribe(
   videoPath: string,
-  outputPath: string
+  outputPath: string,
+  shouldExtractAudio: boolean = false
 ) {
   try {
     // Extract frames from video
     await extractFrames(videoPath, 1, outputPath);
 
     // Extract audio from video
-    await extractAudio(videoPath, outputPath);
+    if (shouldExtractAudio) {
+      await extractAudio(videoPath, outputPath);
+    }
   } catch (error) {
     console.error('Error extracting media and transcribing:', error);
   }

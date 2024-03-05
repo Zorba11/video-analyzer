@@ -2,7 +2,7 @@ import { openai } from '../openai/openaiConfig';
 import { supabase } from '../db/supabaseConfig';
 import fs from 'fs';
 import path from 'path';
-import { insertRow } from '../db/dbFunctions';
+import { getVideoIdByFilename, insertRow } from '../db/dbFunctions';
 import { Transcription } from 'openai/resources/audio/transcriptions';
 import { Embeddings } from 'openai/resources';
 import { exec } from 'child_process';
@@ -10,6 +10,10 @@ import { transcribeAudio } from '../apis/audioApis';
 import { createEmbeddings } from '../apis/embeddings';
 import sharp from 'sharp';
 import util from 'util';
+import { clearAllImagesInDirectory } from './fileSysHelpers';
+import * as mm from 'music-metadata';
+import { processStoryBoard } from '../apis/gpt4Vision';
+import { InitialVideoDetectionPrompt } from '../SystemPrompts';
 
 const readFile = util.promisify(fs.readFile);
 
@@ -39,25 +43,28 @@ const AUDIO_TRANSCRIPT_VECTOR_COLUMN = 'aud_tr_vectors';
 
 export async function createAudioVideoEmbeddings(
   outputFolderPath: string,
-  fileName: string
+  fileName: string,
+  shouldExtractAudio: boolean = false
 ) {
   try {
     const videoPath = path.join(outputFolderPath, fileName);
 
-    // await insertVideoInfoToDB(fileName, videoPath);
+    await insertVideoInfoToDB(fileName, videoPath);
 
-    // const audioPath = buildAudioPath(videoPath);
+    if (shouldExtractAudio) {
+      const audioPath = buildAudioPath(videoPath);
 
-    // const audioDuration = await getAudioDuration(audioPath);
+      const audioDuration = await getAudioDuration(audioPath);
 
-    // console.log('Audio duration:', audioDuration);
+      console.log('Audio duration:', audioDuration);
 
-    // const transcription = await transcribeAudio(audioPath, audioDuration);
+      const transcription = await transcribeAudio(audioPath, audioDuration);
 
-    // await insertAudioTranscriptToDB(
-    //   fileName,
-    //   transcription as TrascriptWithWords
-    // );
+      await insertAudioTranscriptToDB(
+        fileName,
+        transcription as TrascriptWithWords
+      );
+    }
 
     const framesDir = path.dirname(videoPath);
 
@@ -73,7 +80,19 @@ export async function createAudioVideoEmbeddings(
 
 async function processVideo(videoFramesPath: string, fileName: string) {
   try {
-    createStoryboardFromFrames(videoFramesPath);
+    createStoryboardFromFrames(videoFramesPath).then(() => {
+      clearAllImagesInDirectory(videoFramesPath);
+    });
+
+    const storyboardPath = path.join(videoFramesPath, 'storyboards');
+
+    await processStoryBoard(
+      storyboardPath,
+      InitialVideoDetectionPrompt,
+      fileName
+    );
+
+    // describe with GPT-4
   } catch (error) {
     console.error('Failed to process video:', error);
   }
@@ -139,11 +158,6 @@ async function createStoryboardFromFrames(videoFramesPath: string) {
     console.error(err);
   }
 }
-
-const outputPath =
-  '/Users/ageorge/Desktop/gpt-4v-trials/extractions/1709146228347-Forrest_Gump/';
-
-const fileName = '1709146228347-Forrest_Gump.mp4';
 
 async function insertVideoInfoToDB(fileName: string, videoPath: string) {
   const data = {
@@ -233,30 +247,6 @@ async function insertWords(videoId: number, transcript: TrascriptWithWords) {
   }
 }
 
-// Function to get video ID by filename
-async function getVideoIdByFilename(
-  filename: string
-): Promise<number[] | null> {
-  try {
-    const { data, error } = await supabase
-      .from('videos')
-      .select('id')
-      .eq('title', filename);
-
-    if (error) {
-      console.error('Error retrieving data', error);
-      return null;
-    }
-
-    // Extract the ids from the data array
-    const ids = data.map((row) => row.id);
-    return ids;
-  } catch (error) {
-    console.error('Failed to get video ID by filename:', error);
-    return null;
-  }
-}
-
 function buildAudioPath(videoPath: string) {
   let parsedPath = path.parse(videoPath);
 
@@ -269,19 +259,19 @@ function buildAudioPath(videoPath: string) {
   return audioPath;
 }
 
-function getAudioDuration(filePath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    exec(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${filePath}`,
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(parseFloat(stdout));
-        }
-      }
-    );
-  });
+async function getAudioDuration(filePath: string): Promise<number> {
+  try {
+    const metadata = await mm.parseFile(filePath);
+    if (!metadata.format.duration) {
+      throw new Error('Duration is not available');
+    }
+    return metadata.format.duration;
+  } catch (error) {
+    throw error;
+  }
 }
 
-createAudioVideoEmbeddings(outputPath, fileName);
+const outputPath =
+  '/Users/ageorge/Desktop/gpt-4v-trials/extractions/1709242732531-Forrest_Gump/';
+
+const fileName = '1709242732531-Forrest_Gump.mp4';

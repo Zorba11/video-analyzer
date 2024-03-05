@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearDirectory = void 0;
+exports.clearAllImagesInDirectory = exports.clearDirectory = void 0;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 // Function to delete all files in a directory
@@ -40,4 +40,19 @@ function clearDirectory(directory) {
     });
 }
 exports.clearDirectory = clearDirectory;
+function clearAllImagesInDirectory(directory) {
+    fs.readdir(directory, (err, files) => {
+        if (err)
+            throw err;
+        for (const file of files) {
+            if (file.endsWith('.jpg')) {
+                fs.unlink(path.join(directory, file), (err) => {
+                    if (err)
+                        throw err;
+                });
+            }
+        }
+    });
+}
+exports.clearAllImagesInDirectory = clearAllImagesInDirectory;
 //# sourceMappingURL=fileSysHelpers.js.map

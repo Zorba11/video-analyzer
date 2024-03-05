@@ -10,15 +10,40 @@ import {
   saveYUVBase64AsJPG,
 } from './utils/imgHelpers';
 import { executeAction } from './actions/actionsRoot';
-import { SystemPrompts } from './SystemPrompts';
+import {
+  DecideHowToProcessPrompt,
+  DeliverTimeStampsPromptAudio,
+  DeliverTimeStampsPromptVideo,
+  SystemPrompts,
+  VideoAIMainChatbotPrompt,
+} from './SystemPrompts';
 import { clearDirectory } from './utils/fileSysHelpers';
 import { extractMediaAndTranscribe } from './utils/mediaExtractor';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { createAudioVideoEmbeddings } from './utils/insightsEngine';
+import {
+  checkVideoSummaryExist,
+  findSimilarItems,
+  getAudioSummaryByVideoId,
+  getVideoIdByFilename,
+  retrieveChat,
+  searchForPhraseEmbedding,
+  searchSequence,
+  searchThroughFrames,
+  storeVideoSummaryInDB,
+  summarizeAudioVideoFrames,
+} from './db/dbFunctions';
+import { createEmbeddings } from './apis/embeddings';
+import { CreateEmbeddingResponse } from 'openai/resources';
+import { askGPT4, generateSpeech } from './apis/textLLMApis';
+import { Readable } from 'stream';
 dotenv.config();
 
 let storyBoardBuffer: string[] = [];
+
+let phoneNumber = '';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -72,12 +97,12 @@ app.post('/uploadFrames', async (req, res) => {
   try {
     const base64Images = req.body.base64Images;
 
-    const fTime1 = base64Images[0].time;
-    const fTime2 = base64Images[1].time;
-    const fTime3 = base64Images[2].time;
-    const fTime4 = base64Images[3].time;
-    const fTime5 = base64Images[4].time;
-    const fTime6 = base64Images[5].time;
+    const fTime1 = base64Images[0]?.time;
+    const fTime2 = base64Images[1]?.time;
+    const fTime3 = base64Images[2]?.time;
+    const fTime4 = base64Images[3]?.time;
+    const fTime5 = base64Images[4]?.time;
+    const fTime6 = base64Images[5]?.time;
 
     const storyBoardName = `storyboards/output-story-sequenced-${fTime1}.jpg`;
 
@@ -162,7 +187,13 @@ app.post('/upload', upload.single('video'), (req, res) => {
       `extractions/${fileNameWithoutExtension}/`
     );
 
-    extractMediaAndTranscribe(absoluteFilePath, outputFolderPath);
+    res.status(200).send('Video uploaded');
+
+    extractMediaAndTranscribe(absoluteFilePath, outputFolderPath)
+      .then(() => createAudioVideoEmbeddings(outputFolderPath, fileName))
+      .catch((error) => {
+        console.error('Failed to extract media and transcribe:', error);
+      });
   } else {
     res.status(400).send('No video uploaded.');
   }
@@ -214,6 +245,181 @@ app.get('/files', (req, res) => {
     res.send(files);
   });
 });
+
+app.post('/improve-prompt', async (req, res) => {
+  const prompt = req.body.prompt;
+
+  if (!prompt) {
+    return res.status(400).send('No prompt provided');
+  }
+
+  const improvedPrompt = await askGPT4(SystemPrompts.ImprovePrompt, prompt);
+
+  res.status(200).send(improvedPrompt);
+});
+
+app.post('/talk-to-gpt', async (req, res) => {
+  const prompt = req.body.prompt;
+
+  if (!prompt) {
+    return res.status(400).send('No prompt provided');
+  }
+
+  // ask gpt
+  // pipe the result to text to speech api
+  // send the audio file back to the client
+
+  const gptResponse = await askGPT4(
+    SystemPrompts.TalkToGPT,
+    prompt,
+    'gpt-3.5-turbo-0125'
+  );
+
+  const audioBuffer = await generateSpeech(gptResponse ? gptResponse : '');
+
+  const buffer = Buffer.from(audioBuffer);
+
+  res.writeHead(200, {
+    'Content-Type': 'audio/mp3',
+    'Content-Length': buffer.length,
+  });
+
+  const stream = require('stream');
+  const readableStream = new stream.PassThrough();
+  readableStream.end(buffer);
+
+  readableStream.pipe(res);
+});
+
+app.post('/retrieve-chat', async (req, res) => {
+  const fileName = req.body.fileName;
+
+  if (!fileName) {
+    return res.status(400).send('No filename provided');
+  }
+
+  // retrieve chat from db
+  const videoId = await getVideoIdByFilename(fileName);
+  const chatMessages = await retrieveChat(videoId ? videoId[0] : 0);
+
+  const response = chatMessages?.map((chatMessage) => ({
+    sender: chatMessage.sender,
+    text: chatMessage.message,
+    id: chatMessage.video_id,
+  }));
+
+  res.status(200).send(response);
+
+  const videoSummaryExist = await checkVideoSummaryExist(
+    videoId ? videoId[0] : 0
+  );
+
+  if (!videoSummaryExist) {
+    // summarize the audio and video
+    const videoSummary = await summarizeAudioVideoFrames(
+      videoId ? videoId[0] : 0
+    );
+
+    if (videoSummary) {
+      // save the video summary to the db
+      await storeVideoSummaryInDB(videoId ? videoId[0] : 0, videoSummary);
+    }
+  }
+});
+
+app.post('/chat', async (req, res) => {
+  const videoId = req.body.videoId;
+  const sender = req.body.sender;
+  const userQuery = req.body.text;
+
+  if (!videoId || !userQuery) {
+    return res.status(400).send('No videoId or message provided');
+  }
+
+  const gptResponse = await askGPT4(DecideHowToProcessPrompt, userQuery);
+
+  if (gptResponse) {
+    const aiResponse = await findDecisionAndExecute(
+      gptResponse,
+      videoId,
+      userQuery
+    );
+    res.status(200).send({ sender: 'AI', text: aiResponse });
+  }
+});
+
+async function findDecisionAndExecute(
+  gptMsg: string,
+  videoId: number,
+  userQuery: string
+) {
+  if (gptMsg.includes('function_to_call: getSummarizedVideoText')) {
+    // getVideoSummaryAndAIResponse
+    const videoSummary = await getAudioSummaryByVideoId(videoId);
+    if (videoSummary) {
+      const userPrompt = `This was the user query${userQuery}.Here is the summarized video text: ${videoSummary}`;
+      const aiResponseWithSummary = await askGPT4(
+        VideoAIMainChatbotPrompt,
+        userPrompt
+      );
+
+      return aiResponseWithSummary;
+    }
+  }
+
+  if (gptMsg.includes('"function_to_call": "queryAudio"')) {
+    console.log('queryAudio');
+
+    // vectorize the message and do a similarity search
+    const embedding = await createEmbeddings(userQuery);
+    if (embedding) {
+      // const result = findSimilarItems(embedding.data[0].embedding as number[]);
+
+      const result = await searchSequence(
+        videoId,
+        embedding.data[0].embedding as number[]
+      );
+
+      if (result) {
+        const startTimes = result.map((item: any) => item.start_time);
+        const userPrompt = `This was the user quer: ${userQuery}.Here are the start times for word sequence: ${startTimes}`;
+        const aiResponse = await askGPT4(
+          DeliverTimeStampsPromptAudio,
+          userPrompt
+        );
+
+        return aiResponse;
+      }
+    }
+  }
+
+  if (gptMsg.includes('function_to_call: queryVideo')) {
+    console.log('queryVideo');
+    // vectorize the message and do a similarity search
+    const embedding = await createEmbeddings(userQuery);
+    if (embedding) {
+      const result = await searchThroughFrames(
+        videoId,
+        embedding.data[0].embedding as number[]
+      );
+
+      if (result) {
+        const userPrompt = `This was the user query${userQuery}.Here are the information about the user queried frames: ${JSON.stringify(
+          result
+        )}`;
+        const aiResponse = await askGPT4(
+          DeliverTimeStampsPromptVideo,
+          userPrompt
+        );
+
+        return aiResponse;
+      }
+    }
+  }
+}
+
+
+
 
 
 

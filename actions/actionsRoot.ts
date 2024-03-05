@@ -9,7 +9,7 @@ export function executeAction(description: string) {
   try {
     console.log('executing action...');
 
-    const matchResult = description.match(/```json\n([\s\S]*?)\n```/);
+    let matchResult = description.match(/```json\n([\s\S]*?)\n```/);
 
     let actions;
 
@@ -24,6 +24,7 @@ export function executeAction(description: string) {
     for (let i = 0; i < actions.length; i++) {
       if (actions[i].function_to_call === 'informBlockedView') {
         sendBlockedViewAlert();
+        return;
       }
 
       if (actions[i].function_to_call === 'lightsOff') {
